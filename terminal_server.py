@@ -3,35 +3,41 @@ import subprocess, asyncio
 
 app = FastAPI()
 
-CONTAINER_NAME = "ubuntu"  # nom du conteneur lancé avec docker run -dit --name ubuntu22 ubuntu:22.04 bash
-
 # ------------------------
 # Route HTTP simple
 # ------------------------
 @app.post("/terminal")
 def terminal(command: str = Body(...)):
     try:
-        cmd = ["docker", "exec", CONTAINER_NAME, "bash", "-c", command]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        result = subprocess.run(
+            command,
+            shell=True,
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
         output = (result.stdout or "") + (result.stderr or "")
         status = "ok" if result.returncode == 0 else "error"
-        return {"command": command, "status": status, "output": output}
+        return {
+            "command": command,
+            "status": status,
+            "output": output
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"terminal_error: {str(e)}")
 
 # ------------------------
-# Route WebSocket simple
+# Route WebSocket interactive
 # ------------------------
 @app.websocket("/terminal/ws")
 async def websocket_terminal(ws: WebSocket):
     await ws.accept()
-    await ws.send_text(f"Bienvenue dans le terminal Ubuntu 🚀 (conteneur: {CONTAINER_NAME})\n")
+    await ws.send_text("Bienvenue dans le terminal Render 🚀\n")
     try:
         while True:
-            data = await ws.receive_text()
-            cmd = ["docker", "exec", CONTAINER_NAME, "bash", "-c", data]
-            proc = await asyncio.create_subprocess_exec(
-                *cmd,
+            cmd = await ws.receive_text()
+            proc = await asyncio.create_subprocess_shell(
+                cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
